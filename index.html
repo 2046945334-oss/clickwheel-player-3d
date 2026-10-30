@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>clickwheel-player-3d 示范</title>
+<style>
+  :root { color-scheme: light; font-family: "PingFang TC", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #f7f1ea, #efe3e6); color: #3a332a; display: flex; flex-direction: column; align-items: center; }
+  header { text-align: center; padding: 18px 16px 4px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  header p { margin: 0; font-size: 13px; color: #8f8574; }
+  #player { width: min(72vw, 300px, 46vh); aspect-ratio: 1.32 / 2.7; margin: 8px 0; }
+  #player.nobuds { aspect-ratio: 1.18 / 1.78; }
+  .panel { width: min(92vw, 420px); background: rgba(255,255,255,.7); border-radius: 16px; padding: 12px 14px; box-sizing: border-box; margin-bottom: 18px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .row b { font-size: 13px; min-width: 3em; }
+  button, label.chk { min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.12); background: #fff; font: inherit; font-size: 13px; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  button[aria-pressed="true"] { background: #3a332a; color: #fff; border-color: #3a332a; }
+  #log { font-size: 12px; color: #8f8574; min-height: 1.6em; margin-top: 6px; }
+  #fail { display: none; padding: 24px; text-align: center; font-size: 14px; }
+  footer { font-size: 12px; color: #8f8574; padding: 0 16px 24px; text-align: center; }
+  footer a { color: inherit; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <h1>转轮播放器外观</h1>
+  <p>转轮上按 MENU、左右切歌、下面或中间播放暂停；手指沿著转轮转圈拖进度；按住机身拖一下会歪。</p>
+</header>
+<div id="player" aria-live="off"></div>
+<div id="fail" role="alert">这个浏览器打不开 WebGL，看不到 3D 画面。</div>
+<div class="panel">
+  <div class="row" id="skins" role="radiogroup" aria-label="配色"><b>配色</b></div>
+  <div class="row"><b>选项</b>
+    <label class="chk"><input type="checkbox" id="buds" checked> 耳机</label>
+    <label class="chk"><input type="checkbox" id="stk" checked> 贴纸</label>
+    <label class="chk"><input type="checkbox" id="cov"> 示范封面</label>
+  </div>
+  <div id="log" role="status">这个示范没有声音，进度是假的计时器。</div>
+</div>
+<footer>
+  <a href="https://github.com/2046945334-oss/clickwheel-player-3d">原始码</a> · CC BY-NC 4.0 · 用到 <a href="https://threejs.org/">three.js</a>（MIT）
+</footer>
+<script type="module">
+import * as THREE from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { createPlayer, SKINS } from './src/index.js'
+
+const SONGS = [
+  { title: '示范曲目一', artist: '某位歌手', duration: 214, lyric: '这一句是假装的歌词' },
+  { title: '一首名字很长很长很长很长的示范曲目', artist: '另一位歌手', duration: 187, lyric: '' },
+  { title: 'Demo Track', artist: 'Someone', duration: 251, lyric: 'la la la' },
+]
+const AVATARS = [{ label: 'A' }, { label: 'B' }]
+let skin = 'lime', idx = 0, pos = 0, playing = false, player = null, timer = 0
+const $ = id => document.getElementById(id)
+const log = s => { $('log').textContent = s }
+
+// 示范封面：当场用 canvas 画一张，不放任何人的图
+function demoCover(i) {
+  const c = document.createElement('canvas'); c.width = c.height = 300
+  const g = c.getContext('2d'), hue = [24, 200, 320][i % 3]
+  const gr = g.createLinearGradient(0, 0, 300, 300); gr.addColorStop(0, `hsl(${hue},70%,72%)`); gr.addColorStop(1, `hsl(${hue + 40},60%,42%)`)
+  g.fillStyle = gr; g.fillRect(0, 0, 300, 300)
+  g.fillStyle = 'rgba(255,255,255,.85)'
+  for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(60 + k * 45, 150 + Math.sin(k) * 40, 18 + k * 4, 0, Math.PI * 2); g.fill() }
+  return c.toDataURL('image/png')
+}
+const song = () => SONGS[idx]
+const coverOf = () => ($('cov').checked ? demoCover(idx) : '')
+function push() { player && player.update({ ...song(), position: pos, playing, topText: '示范 · 没有声音' }) }
+function tick() {
+  clearInterval(timer)
+  if (!playing) return
+  timer = setInterval(() => { pos += 1; if (pos >= song().duration) { idx = (idx + 1) % SONGS.length; pos = 0; player && player.setCover(coverOf()) } push() }, 1000)
+}
+function mount() {
+  if (player) player.destroy()
+  const el = $('player')
+  el.classList.toggle('nobuds', !$('buds').checked)
+  try {
+    player = createPlayer(el, {
+      THREE, RoomEnvironment, skin, earphones: $('buds').checked, stickers: $('stk').checked,
+      avatars: AVATARS, cover: coverOf(),
+      state: { ...song(), position: pos, playing, topText: '示范 · 没有声音' },
+      onCommand: cmd => {
+        if (cmd === 'play') { playing = !playing; log(playing ? '播放（假的）' : '暂停') }
+        else { idx = (idx + (cmd === 'next' ? 1 : SONGS.length - 1)) % SONGS.length; pos = 0; player.setCover(coverOf()); log(cmd === 'next' ? '下一首' : '上一首') }
+        push(); tick()
+      },
+      onMenu: () => log('按了 MENU'),
+      onSeek: s => { pos = Math.round(s); push(); log('跳到 ' + Math.floor(pos / 60) + ':' + String(pos % 60).padStart(2, '0')) },
+      onOutsideTap: () => log('点了播放器外面'),
+      onError: () => { $('fail').style.display = 'block'; el.style.display = 'none' },
+    })
+  } catch (e) { console.error(e); $('fail').style.display = 'block'; el.style.display = 'none' }
+}
+for (const s of SKINS) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = s.name; b.setAttribute('role', 'radio')
+  b.setAttribute('aria-pressed', String(s.id === skin)); b.setAttribute('aria-checked', String(s.id === skin))
+  b.onclick = () => { skin = s.id; for (const x of $('skins').querySelectorAll('button')) { const on = x === b; x.setAttribute('aria-pressed', String(on)); x.setAttribute('aria-checked', String(on)) } mount() }
+  $('skins').appendChild(b)
+}
+$('buds').onchange = mount; $('stk').onchange = mount
+$('cov').onchange = () => player && player.setCover(coverOf())
+mount()
+</script>
+</body>
+</html>

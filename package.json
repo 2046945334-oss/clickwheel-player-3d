@@ -1,0 +1,29 @@
+{
+  "name": "clickwheel-player-3d",
+  "version": "0.1.0",
+  "description": "用 three.js 做的转轮播放器外观：烤漆机身、封面萤幕、转轮手势、涂鸦贴纸、耳机线。只有外观和手势，不播放声音",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./react": "./react/index.js",
+    "./config": "./src/config.js"
+  },
+  "files": ["src", "react", "LICENSE", "README.md"],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "three": ">=0.160.0",
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "three": "0.186.1"
+  },
+  "keywords": ["three.js", "music player", "click wheel", "webgl", "react"],
+  "license": "CC-BY-NC-4.0",
+  "repository": { "type": "git", "url": "https://github.com/2046945334-oss/clickwheel-player-3d.git" }
+}
